@@ -1,11 +1,17 @@
 import socket
 import ssl
+import os 
 
 class URL:
     def __init__(self, url):
-        self.scheme, url = url.split("://", 1)
-        
-        assert self.scheme in ["http", "https"]
+        self.scheme, url = url.split("://", 1)        
+        assert self.scheme in ["http", "https", "file"]
+
+        if self.scheme == "file":
+            self.path = url.replace("/", os.path.sep)
+            self.host = None
+            self.port = None
+            return
         
         if "/" not in url:
             url = url + "/"
@@ -22,6 +28,10 @@ class URL:
             self.port = 443
         
     def request(self):
+        if self.scheme == "file":
+            with open(self.path, "r") as f:
+                return f.read()
+            
         s = socket.socket(
             family=socket.AF_INET,
             type=socket.SOCK_STREAM,
@@ -36,7 +46,11 @@ class URL:
         
         request = "GET {} HTTP/1.0\r\n".format(self.path)
         
-        headers = {"Host": self.host, "Connection": "close", "User-Agent": "luxe-ashllxyy"}
+        headers = {
+            "Host": self.host,
+            "Connection": "close",
+            "User-Agent": "luxe-ashllxyy"
+            }
         for key, value in headers.items():
             request += "{}: {}\r\n".format(key, value)
         request += "\r\n"
@@ -68,6 +82,10 @@ def show_page(body):
             in_tag = True
         elif c == ">":
             in_tag = False
+        elif c == "&lt;":
+            print("<", end="")
+        elif c == "&gt;":
+            print(">", end="")
         elif not in_tag:
             print(c, end="")
             
