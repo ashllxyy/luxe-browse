@@ -149,7 +149,15 @@ def load(url):
         print(html.unescape(body))
         return
     show_page(body)
-            
+
+test_urls = ["http://example.com", "https://example.com", "http://example.com:8080", "https://example.com:8080", "data:text/plain,Hello%2C%20World!", "view-source:http://example.com"]
+
 if __name__ == "__main__":
     import sys
-    load(URL(sys.argv[1]))
+    arg = sys.argv[1]
+    if arg == "test":
+        for url in test_urls:
+            print("URL: ", url)
+            load(URL(url))
+    else:
+        load(URL(sys.argv[1]))
