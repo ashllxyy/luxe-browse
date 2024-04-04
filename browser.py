@@ -7,6 +7,9 @@ MAX_REDIRECTS = 5
 
 class URL:
     def __init__(self, url, redirects=0):
+        self.socket = None
+        self.view_source_url = None
+        
         if(redirects > MAX_REDIRECTS):
             raise ValueError("Exceeded maximum number of redirects - {} redirect(s)".format(MAX_REDIRECTS))
         
@@ -22,8 +25,8 @@ class URL:
         
         self.scheme, url = url.split("://", 1)
         if("view-source" in self.scheme):
-            self.scheme, self.scheme2 = self.scheme.split(":", 1) 
-            self.view_source_url = self.scheme2 + "://" + url
+            self.scheme, scheme = self.scheme.split(":", 1) 
+            self.view_source_url = scheme + "://" + url
             
         assert self.scheme in ["http", "https", "file", "view-source"]
 
@@ -42,11 +45,35 @@ class URL:
             self.host, port = self.host.split(":", 1)
             self.port = int(port)
             
-        if self.scheme == "http" or self.scheme2 == "http":
+        if self.scheme == "http":
             self.port = 80
-        elif self.scheme == "https" or self.scheme2 == "https":
+        elif self.scheme == "https":
             self.port = 443
-        
+
+        if(self.view_source_url):
+            view_source_scheme = self.view_source_url.split("://", 1)[0]
+            if(view_source_scheme == "http"):
+                self.port = 80
+            elif(view_source_scheme == "https"):
+                self.port = 443
+                
+    def connect(self):
+        if self.socket is None:
+            self.socket = socket.socket(
+                family=socket.AF_INET,
+                type=socket.SOCK_STREAM,
+                proto=socket.IPPROTO_TCP,
+            )
+            if self.scheme == "https":
+                context = ssl.create_default_context()
+                self.socket = context.wrap_socket(self.socket, server_hostname=self.host)
+            self.socket.connect((self.host, self.port))
+
+    def close(self):
+        if self.socket is not None:
+            self.socket.close()
+            self.socket = None
+    
     def request(self):
         if self.scheme == "file":
             with open(self.path, "r") as f:
@@ -55,16 +82,7 @@ class URL:
         if self.scheme == "data":
             return self.body
                     
-        s = socket.socket(
-            family=socket.AF_INET,
-            type=socket.SOCK_STREAM,
-            proto=socket.IPPROTO_TCP,
-        )
-        if(self.scheme == "https"):
-            context = ssl.create_default_context()
-            s = context.wrap_socket(s, server_hostname=self.host)
-        
-        s.connect((self.host, self.port))
+        self.connect()
         
         request = "GET {} HTTP/1.0\r\n".format(self.path)
         
@@ -77,9 +95,9 @@ class URL:
             request += "{}: {}\r\n".format(key, value)
         request += "\r\n"
         
-        s.send(request.encode("utf8"))
+        self.socket.send(request.encode("utf8"))
         
-        response = s.makefile("r", encoding="utf8", newline="\r\n")
+        response = self.socket.makefile("r", encoding="utf8", newline="\r\n")
         statusline = response.readline()
         version, status, explanation = statusline.split(" ", 2)
                     
@@ -99,9 +117,16 @@ class URL:
                 return URL(self.scheme + "://" + self.host + response_headers["location"], self.redirects + 1).request()
             return URL(response_headers["location"], self.redirects + 1).request()
         
-        content = response.read()
-        s.close()
-                
+        content_length = int(response_headers.get("content-length", 0))
+        
+        if content_length > 0:
+            content = response.read(content_length)
+        else:
+            content = response.read()
+        
+        if(headers["Connection"] == "close"):
+            self.socket.close()
+            
         return content
 
 def show_page(body):
