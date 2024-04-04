@@ -4,6 +4,12 @@ import os
 
 class URL:
     def __init__(self, url):
+        if(url[:5] == "data:"):
+            self.scheme, url = url.split(":", 1)
+            self.data_type, url = url.split(",", 1)
+            self.body = url
+            return
+        
         self.scheme, url = url.split("://", 1)        
         assert self.scheme in ["http", "https", "file"]
 
@@ -31,7 +37,10 @@ class URL:
         if self.scheme == "file":
             with open(self.path, "r") as f:
                 return f.read()
-            
+        
+        if self.scheme == "data":
+            return self.body
+        
         s = socket.socket(
             family=socket.AF_INET,
             type=socket.SOCK_STREAM,
