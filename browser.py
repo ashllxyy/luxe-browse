@@ -2,8 +2,73 @@ import socket
 import ssl
 import os 
 import html
+import tkinter
 
+WIDTH, HEIGHT = 800, 600
 MAX_REDIRECTS = 5
+HSTEP, VSTEP = 9, 18
+
+def layout(text):
+    display_list = []
+    cursor_x, cursor_y = HSTEP, VSTEP
+    for c in text:
+        if c == "\n":
+            cursor_y += VSTEP
+            cursor_x = HSTEP
+            continue
+        display_list.append((cursor_x, cursor_y, c))
+        cursor_x += HSTEP
+        if cursor_x >= WIDTH - HSTEP:
+            cursor_y += VSTEP
+            cursor_x = HSTEP
+    return display_list
+
+class Browser:
+    def __init__(self):
+        self.window = tkinter.Tk()
+        self.canvas = tkinter.Canvas(
+            self.window, 
+            width=WIDTH,
+            height=HEIGHT
+        )
+        self.scroll = 0
+        
+        self.canvas.pack(fill=tkinter.BOTH, expand=tkinter.YES)
+        
+        # Binds
+        self.window.bind("<Down>", self.scrolldown)
+        self.window.bind("<Up>", self.scrollup)
+        self.window.bind("<MouseWheel>", self.mouse_scroll)
+        
+    def load(self, url):
+        body = url.request()
+        self.text = lex(body)
+        self.display_list = layout(self.text)
+        self.draw()
+    
+    def draw(self):
+        self.canvas.delete("all")
+        for x, y, c in self.display_list:
+            if y > self.scroll + HEIGHT: continue
+            if y + VSTEP < self.scroll: continue
+            self.canvas.create_text(x, y - self.scroll, text=c)
+    
+    def scrolldown(self, event):
+        self.scroll += VSTEP
+        self.canvas.delete("all")
+        self.draw()
+        
+    def scrollup(self, event):
+        if(self.scroll == 0): return
+        self.scroll -= VSTEP
+        self.canvas.delete("all")
+        self.draw()
+        
+    def mouse_scroll(self, event):
+        if(event.delta > 0):
+            self.scrollup(event)
+        else:
+            self.scrolldown(event)
 
 class URL:
     def __init__(self, url, redirects=0):
@@ -129,7 +194,8 @@ class URL:
             
         return content
 
-def show_page(body):
+def lex(body):
+    text = ""
     in_tag = False
     for c in body:
         if c == "<":
@@ -137,18 +203,19 @@ def show_page(body):
         elif c == ">":
             in_tag = False
         elif c == "&lt;":
-            print("<", end="")
+            text += "<"
         elif c == "&gt;":
-            print(">", end="")
+            text += ">"
         elif not in_tag:
-            print(c, end="")
+            text += c
+    return text
             
 def load(url):
     body = url.request()
     if(url.scheme == "view-source"):
         print(html.unescape(body))
         return
-    show_page(body)
+    lex(body)
 
 test_urls = ["http://example.com", "https://example.com", "http://example.com:8080", "https://example.com:8080", "data:text/plain,Hello%2C%20World!", "view-source:http://example.com"]
 
@@ -160,4 +227,5 @@ if __name__ == "__main__":
             print("URL: ", url)
             load(URL(url))
     else:
-        load(URL(sys.argv[1]))
+        Browser().load(URL(sys.argv[1]))
+        tkinter.mainloop()
