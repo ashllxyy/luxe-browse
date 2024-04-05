@@ -90,45 +90,54 @@ class URL:
             print("Redirect : ", redirects)
             
         self.redirects = redirects
-        if(url[:5] == "data:"):
-            self.scheme, url = url.split(":", 1)
-            self.data_type, url = url.split(",", 1)
-            self.body = url
-            return
         
-        self.scheme, url = url.split("://", 1)
-        if("view-source" in self.scheme):
-            self.scheme, scheme = self.scheme.split(":", 1) 
-            self.view_source_url = scheme + "://" + url
+        try:
+            if(url[:5] == "data:"):
+                self.scheme, url = url.split(":", 1)
+                self.data_type, url = url.split(",", 1)
+                self.body = url
+                return
             
-        assert self.scheme in ["http", "https", "file", "view-source"]
+            self.scheme, url = url.split("://", 1)
+            if("view-source" in self.scheme):
+                self.scheme, scheme = self.scheme.split(":", 1) 
+                self.view_source_url = scheme + "://" + url
+                
+            assert self.scheme in ["http", "https", "file", "view-source"]
 
-        if self.scheme == "file":
-            self.path = url.replace("/", os.path.sep)
-            self.host = None
-            self.port = None
-            return
-        
-        if "/" not in url:
-            url = url + "/"
-        self.host, url = url.split("/", 1)
-        self.path = "/" + url
-
-        if ":" in self.host:
-            self.host, port = self.host.split(":", 1)
-            self.port = int(port)
+            if self.scheme == "file":
+                self.path = url.replace("/", os.path.sep)
+                self.host = None
+                self.port = None
+                return
             
-        if self.scheme == "http":
-            self.port = 80
-        elif self.scheme == "https":
-            self.port = 443
+            if "/" not in url:
+                url = url + "/"
+            self.host, url = url.split("/", 1)
+            self.path = "/" + url
 
-        if(self.view_source_url):
-            view_source_scheme = self.view_source_url.split("://", 1)[0]
-            if(view_source_scheme == "http"):
+            if ":" in self.host:
+                self.host, port = self.host.split(":", 1)
+                self.port = int(port)
+                
+            if self.scheme == "http":
                 self.port = 80
-            elif(view_source_scheme == "https"):
+            elif self.scheme == "https":
                 self.port = 443
+
+            if(self.view_source_url):
+                view_source_scheme = self.view_source_url.split("://", 1)[0]
+                if(view_source_scheme == "http"):
+                    self.port = 80
+                elif(view_source_scheme == "https"):
+                    self.port = 443
+        except Exception as e:
+            self.malformed = True
+            self.scheme = "about"
+            self.host = "blank"
+            self.path = ""
+            self.port = None
+            self.body = ""            
                 
     def connect(self):
         if self.socket is None:
@@ -154,7 +163,10 @@ class URL:
         
         if self.scheme == "data":
             return self.body
-                    
+        
+        if self.malformed:
+            return self.body
+        
         self.connect()
         
         request = "GET {} HTTP/1.0\r\n".format(self.path)
