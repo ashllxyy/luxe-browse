@@ -6,7 +6,7 @@ import tkinter
 
 WIDTH, HEIGHT = 800, 600
 MAX_REDIRECTS = 5
-HSTEP, VSTEP = 9, 18
+HSTEP, VSTEP = 8, 18
 
 def layout(text):
     display_list = []
@@ -39,6 +39,7 @@ class Browser:
         self.window.bind("<Down>", self.scrolldown)
         self.window.bind("<Up>", self.scrollup)
         self.window.bind("<MouseWheel>", self.mouse_scroll)
+        self.window.bind("<Configure>", self.resize)
         
     def load(self, url):
         body = url.request()
@@ -70,6 +71,13 @@ class Browser:
         else:
             self.scrolldown(event)
 
+    def resize(self, event):
+        global WIDTH, HEIGHT
+        WIDTH, HEIGHT = event.width, event.height
+        self.display_list = layout(self.text)
+        self.canvas.pack(fill=tkinter.BOTH, expand=tkinter.YES)
+        self.draw()
+        
 class URL:
     def __init__(self, url, redirects=0):
         self.socket = None
